@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: ecommerce_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ecommerce
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ecommerce
+
+  # Laravel Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ecommerce_backend
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      - DB_HOST=postgres
+      - DB_DATABASE=ecommerce
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=password
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/var/www
+      - /var/www/vendor
+    networks:
+      - ecommerce
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ecommerce_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - ecommerce
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000/api
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: ecommerce_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./docker/nginx/sites/:/etc/nginx/sites-available/
+      - ./docker/nginx/ssl/:/etc/ssl/certs/
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - ecommerce
+
+volumes:
+  postgres_data:
+
+networks:
+  ecommerce:
+    driver: bridge
