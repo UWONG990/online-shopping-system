@@ -25,20 +25,28 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www
 
+# Copy composer files
+COPY composer.json composer.lock ./
+
+# Install dependencies as root first
+RUN composer install --no-dev --optimize-autoloader --no-scripts
+
 # Copy existing application directory contents
-COPY . /var/www
+COPY . .
 
-# Copy existing application directory permissions
-COPY --chown=www-data:www-data . /var/www
+# Fix permissions
+RUN chown -R www-data:www-data /var/www \
+    && chmod -R 755 /var/www/storage \
+    && chmod -R 755 /var/www/bootstrap/cache
 
-# Change current user to www
+# Change current user to www-data
 USER www-data
 
-# Install dependencies
-RUN composer install --no-dev --optimize-autoloader
+# Complete the installation
+RUN composer dump-autoload --optimize
 
-# Generate application key
-RUN php artisan key:generate --ansi --force
+# Create application key if not exists
+RUN php artisan key:generate --ansi --force || true
 
 # Expose port 8000 and start php-fpm server
 EXPOSE 8000
